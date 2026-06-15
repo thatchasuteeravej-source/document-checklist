@@ -394,25 +394,39 @@ async function loadFromSupabase() {
 
 async function upsertRecord(branchId, docType, monthIndex, status, note) {
   setSyncState('loading');
+  const cell = DATA[branchId][docType][monthIndex];
+  const prevStatus = cell.status;
   try {
-    const cell = DATA[branchId][docType][monthIndex];
-    const payload = { branch_id: branchId, doc_type: docType, month_index: monthIndex, status, note, updated_at: new Date().toISOString() };
+    const payload = {
+      branch_id: branchId,
+      doc_type: docType,
+      month_index: monthIndex,
+      status: status,
+      note: note || '',
+      updated_at: new Date().toISOString()
+    };
     let result;
     if (cell.dbId) {
-      result = await db.from('checklist').update(payload).eq('id', cell.dbId).select().single();
+      result = await db.from('checklist')
+        .update({ status: status, note: note || '', updated_at: new Date().toISOString() })
+        .eq('id', cell.dbId)
+        .select()
+        .single();
     } else {
-      result = await db.from('checklist').insert(payload).select().single();
+      result = await db.from('checklist')
+        .upsert(payload, { onConflict: 'branch_id,doc_type,month_index' })
+        .select()
+        .single();
     }
     if (result.error) throw result.error;
-    // Update only dbId, keep status already set by confirmModal
     DATA[branchId][docType][monthIndex].dbId = result.data.id;
-    DATA[branchId][docType][monthIndex].note = note;
+    DATA[branchId][docType][monthIndex].status = status;
+    DATA[branchId][docType][monthIndex].note = note || '';
     setSyncState('ok');
   } catch(e) {
-    console.error(e);
+    console.error('Supabase error:', e);
     setSyncState('error');
-    // Revert status on error
-    DATA[branchId][docType][monthIndex].status = cell.status;
+    DATA[branchId][docType][monthIndex].status = prevStatus;
     renderTable();
   }
 }
