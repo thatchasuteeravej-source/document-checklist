@@ -542,9 +542,12 @@ async function confirmModal() {
   if (!modalTarget || !modalSelected) { closeModal(); return; }
   const { bid, mi } = modalTarget;
   const note = DATA[bid][currentDoc][mi].note;
+  // Update local state immediately so UI updates right away
+  DATA[bid][currentDoc][mi].status = modalSelected;
   closeModal();
-  await upsertRecord(bid, currentDoc, mi, modalSelected, note);
   renderTable();
+  // Sync to Supabase in background
+  await upsertRecord(bid, currentDoc, mi, modalSelected, note);
 }
 document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) closeModal();
