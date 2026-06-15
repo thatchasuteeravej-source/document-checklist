@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Checklist — ใบเสร็จรับเงิน & เงินสดย่อย</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #F4F6F9;
+    --surface: #FFFFFF;
+    --surface2: #EEF1F6;
+    --border: #D5DAE4;
+    --accent: #1B3A6B;
+    --accent-mid: #2A5298;
+    --accent-light: #EBF0FA;
+    --text: #1A1D26;
+    --text-muted: #6B738A;
+    --danger: #B91C1C;
+    --danger-light: #FEE2E2;
+    --warn: #B45309;
+    --warn-light: #FEF3C7;
+    --ok: #15653A;
+    --ok-light: #DCFCE7;
+    --radius: 8px;
+    --shadow: 0 1px 6px rgba(27,58,107,0.08);
+    --shadow-md: 0 4px 20px rgba(27,58,107,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
+
+  .header {
+    background: linear-gradient(135deg, #1B3A6B 0%, #2A5298 100%);
+    color: #fff; padding: 22px 36px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; border-bottom: 3px solid #B8860B;
+  }
+  .header-brand { display: flex; align-items: center; gap: 14px; }
+  .header-icon {
+    width: 44px; height: 44px; background: rgba(255,255,255,0.15);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 1px solid rgba(255,255,255,0.2);
+  }
+  .header-left h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; }
+  .header-left p { font-size: 12px; opacity: 0.7; margin-top: 3px; font-weight: 400; letter-spacing: 0.03em; text-transform: uppercase; }
+  .header-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn-export {
+    background: #B8860B; color: #fff; border: none; padding: 8px 18px;
+    border-radius: 6px; font-family: 'Sarabun', sans-serif; font-size: 13px;
+    font-weight: 700; cursor: pointer; letter-spacing: 0.03em; transition: background 0.15s;
+  }
+  .btn-export:hover { background: #9A6F0A; }
+
+  /* sync indicator */
+  .sync-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: rgba(255,255,255,0.15); color: #fff; letter-spacing: 0.03em;
+  }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; }
+  .sync-dot.loading { background: #facc15; animation: pulse 1s infinite; }
+  .sync-dot.error { background: #f87171; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .summary-bar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 36px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center;
+  }
+  .stat { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+  .stat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot-ok { background: var(--ok); } .dot-partial { background: var(--warn); } .dot-missing { background: var(--danger); }
+  .stat strong { color: var(--text); font-weight: 700; font-size: 15px; }
+
+  .legend-bar {
+    background: var(--surface2); border-bottom: 1px solid var(--border);
+    padding: 8px 36px; display: flex; gap: 20px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-muted); align-items: center;
+  }
+  .legend-label { font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
+  .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 4px; font-size: 11px; font-weight: 700;
+  }
+  .badge-ok { background: var(--ok-light); color: var(--ok); }
+  .badge-partial { background: var(--warn-light); color: var(--warn); }
+  .badge-missing { background: var(--danger-light); color: var(--danger); }
+  .badge-na { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  .main { padding: 22px 36px; }
+
+  .controls-row { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  .ctrl-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .ctrl-val { font-size: 14px; font-weight: 700; color: var(--accent); padding: 6px 12px; background: var(--accent-light); border-radius: 4px; }
+  .doc-toggle { display: flex; border: 1.5px solid var(--border); border-radius: 4px; overflow: hidden; margin-left: 12px; }
+  .doc-tab {
+    padding: 6px 16px; font-family: 'Sarabun', sans-serif; font-size: 13px;
+    font-weight: 600; cursor: pointer; border: none; background: var(--surface);
+    color: var(--text-muted); transition: all 0.15s; border-right: 1px solid var(--border);
+  }
+  .doc-tab:last-child { border-right: none; }
+  .doc-tab.active { background: var(--accent); color: #fff; }
+  .doc-tab:hover:not(.active) { background: var(--accent-light); color: var(--accent); }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .filter-btn {
+    padding: 6px 14px; border-radius: 4px; border: 1.5px solid var(--border);
+    background: var(--surface); font-family: 'Sarabun', sans-serif; font-size: 13px;
+    cursor: pointer; transition: all 0.15s; color: var(--text-muted); font-weight: 500;
+  }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .filter-btn:hover:not(.active) { border-color: var(--accent-mid); color: var(--accent-mid); }
+  .search-box {
+    margin-left: auto; padding: 7px 14px; border-radius: 4px; border: 1.5px solid var(--border);
+    font-family: 'Sarabun', sans-serif; font-size: 13px; outline: none;
+    background: var(--surface); min-width: 180px; transition: border-color 0.15s;
+  }
+  .search-box:focus { border-color: var(--accent-mid); }
+
+  .table-wrap {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow-md); overflow: auto; border: 1px solid var(--border);
+  }
+  table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  thead { background: var(--accent); }
+  th {
+    padding: 10px 12px; text-align: center; font-size: 12px; font-weight: 700;
+    color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 0.07em;
+    border-right: 1px solid rgba(255,255,255,0.12); white-space: nowrap;
+  }
+  th:first-child, th:nth-child(2) { text-align: left; }
+  th:last-child { border-right: none; }
+  td {
+    padding: 11px 12px; border-bottom: 1px solid var(--border);
+    border-right: 1px solid #EEF1F6; vertical-align: middle; font-size: 14px; text-align: center;
+  }
+  td:first-child, td:nth-child(2) { text-align: left; }
+  td:last-child { border-right: none; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #FAFBFD; }
+  tr:hover td { background: var(--accent-light) !important; }
+
+  .branch-no {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+    color: var(--text-muted); background: var(--surface2); border-radius: 4px;
+    padding: 2px 6px; display: inline-block;
+  }
+  .branch-name { font-weight: 700; font-size: 14px; }
+  .branch-code { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+  .badge-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 5px; font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; transition: transform 0.1s, box-shadow 0.1s; user-select: none;
+  }
+  .badge-btn:hover { transform: scale(1.18); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .badge-btn.ok { background: var(--ok-light); color: var(--ok); }
+  .badge-btn.partial { background: var(--warn-light); color: var(--warn); }
+  .badge-btn.missing { background: var(--danger-light); color: var(--danger); }
+  .badge-btn.na { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+    border-radius: 3px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .pill-ok { background: var(--ok-light); color: var(--ok); border: 1px solid #86efac; }
+  .pill-partial { background: var(--warn-light); color: var(--warn); border: 1px solid #fcd34d; }
+  .pill-missing { background: var(--danger-light); color: var(--danger); border: 1px solid #fca5a5; }
+
+  .note-input {
+    width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 5px 8px;
+    font-family: 'Sarabun', sans-serif; font-size: 13px; background: transparent;
+    color: var(--text); min-width: 150px; resize: none; transition: border-color 0.15s, background 0.15s;
+    cursor: text; text-align: left;
+  }
+  .note-input:focus { outline: none; border-color: var(--accent-mid); background: var(--accent-light); }
+  .note-input::placeholder { color: #B0B7C8; font-size: 12px; }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(27,58,107,0.15);
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+  }
+  .loading-overlay.hidden { display: none; }
+  .loading-box {
+    background: #fff; border-radius: 12px; padding: 28px 36px;
+    box-shadow: var(--shadow-md); text-align: center;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,20,50,0.35);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 10px; padding: 28px 30px;
+    max-width: 420px; width: 90%; box-shadow: 0 12px 50px rgba(27,58,107,0.18);
+    border-top: 4px solid var(--accent);
+  }
+  .modal h3 { font-size: 17px; font-weight: 800; margin-bottom: 4px; color: var(--accent); }
+  .modal .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .modal-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .opt-btn {
+    padding: 13px 10px; border-radius: 7px; border: 2px solid var(--border);
+    background: var(--surface); cursor: pointer; font-family: 'Sarabun', sans-serif;
+    font-size: 14px; font-weight: 600; display: flex; flex-direction: column;
+    align-items: center; gap: 5px; transition: all 0.15s;
+  }
+  .opt-btn:hover { border-color: var(--accent-mid); background: var(--accent-light); }
+  .opt-btn .opt-icon { font-size: 20px; }
+  .opt-btn.sel-ok { border-color: var(--ok); background: var(--ok-light); color: var(--ok); }
+  .opt-btn.sel-partial { border-color: var(--warn); background: var(--warn-light); color: var(--warn); }
+  .opt-btn.sel-missing { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+  .opt-btn.sel-na { border-color: var(--text-muted); background: var(--surface2); color: var(--text-muted); }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+  .btn-cancel {
+    padding: 8px 18px; border-radius: 6px; border: 1.5px solid var(--border);
+    background: transparent; font-family: 'Sarabun', sans-serif; font-size: 14px; cursor: pointer;
+  }
+  .btn-confirm {
+    padding: 8px 22px; border-radius: 6px; border: none; background: var(--accent); color: #fff;
+    font-family: 'Sarabun', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .btn-confirm:hover { background: var(--accent-mid); }
+
+  .footer { text-align: center; padding: 18px; font-size: 11px; color: var(--text-muted); letter-spacing: 0.04em; }
+
+  @media (max-width: 900px) {
+    .header, .summary-bar, .legend-bar, .main { padding-left: 16px; padding-right: 16px; }
+    .main { padding: 16px; }
+  }
+  @media print {
+    .header-right, .filter-row, .controls-row, .modal-overlay, .loading-overlay { display: none !important; }
+    body { background: #fff; }
+    .table-wrap { box-shadow: none; border: 1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div style="font-weight:600;color:var(--accent)">กำลังโหลดข้อมูล...</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">เชื่อมต่อ Supabase</div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-brand">
+    <div class="header-icon">📋</div>
+    <div class="header-left">
+      <h1>Document Checklist — ใบเสร็จรับเงิน & เงินสดย่อย</h1>
+      <p>ระบบติดตามเอกสาร · 11 สาขา · ซิงค์ข้อมูลแบบ Real-time</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="sync-badge"><div class="sync-dot loading" id="syncDot"></div><span id="syncText">กำลังเชื่อมต่อ...</span></div>
+    <button class="btn-export" onclick="printPage()">🖨 พิมพ์ / Export</button>
+  </div>
+</div>
+
+<div class="summary-bar" id="summaryBar"></div>
+
+<div class="legend-bar">
+  <span class="legend-label">สัญลักษณ์:</span>
+  <span><span class="badge badge-ok">✓</span> ครบถ้วน</span>
+  <span><span class="badge badge-partial">!</span> ไม่ครบ / รอแก้ไข</span>
+  <span><span class="badge badge-missing">✗</span> ยังไม่ส่ง</span>
+  <span><span class="badge badge-na">—</span> ไม่มีรายการ</span>
+  <small style="margin-left:auto;color:var(--text-muted)">คลิกที่ช่องสถานะเพื่ออัปเดต · ข้อมูลซิงค์ทุกคนในทีม</small>
+</div>
+
+<div class="main">
+  <div class="controls-row">
+    <span class="ctrl-label">ปี:</span>
+    <span class="ctrl-val">2569</span>
+    <span class="ctrl-label" style="margin-left:12px">ประเภทเอกสาร:</span>
+    <div class="doc-toggle">
+      <button class="doc-tab active" onclick="switchDoc('receipt',this)">ใบเสร็จรับเงิน</button>
+      <button class="doc-tab"        onclick="switchDoc('pettycash',this)">เงินสดย่อย</button>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="filterBranches('all',this)">ทั้งหมด (11)</button>
+    <button class="filter-btn" onclick="filterBranches('missing',this)">⚠ มีปัญหา</button>
+    <button class="filter-btn" onclick="filterBranches('ok',this)">✅ ครบแล้ว</button>
+    <button class="filter-btn" onclick="filterBranches('partial',this)">🔔 รอแก้ไข</button>
+    <input type="text" class="search-box" placeholder="🔍 ค้นหาสาขา..." oninput="searchBranch(this.value)">
+  </div>
+
+  <div class="table-wrap">
+    <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+  </div>
+</div>
+
+<div class="footer">DOCUMENT CHECKLIST SYSTEM · ข้อมูลซิงค์ผ่าน Supabase · สงวนลิขสิทธิ์ภายในองค์กร</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">อัปเดตสถานะ</h3>
+    <p class="modal-sub" id="modalSub"></p>
+    <div class="modal-options">
+      <button class="opt-btn" data-val="ok"      onclick="selectOpt(this)"><span class="opt-icon">✅</span>ครบถ้วน</button>
+      <button class="opt-btn" data-val="partial"  onclick="selectOpt(this)"><span class="opt-icon">⚠️</span>ไม่ครบ / รอแก้ไข</button>
+      <button class="opt-btn" data-val="missing"  onclick="selectOpt(this)"><span class="opt-icon">❌</span>ยังไม่ส่ง</button>
+      <button class="opt-btn" data-val="na"       onclick="selectOpt(this)"><span class="opt-icon">—</span>ไม่มีรายการ</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-confirm" onclick="confirmModal()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase Config ──
+const SUPABASE_URL = 'https://mhuquubfooghzigmyrow.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odXF1dWJmb29naHppZ215cm93Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjc2MTEsImV4cCI6MjA5NzEwMzYxMX0.SSZocO4thCg4iC5RxpSYvW0152moXXedLzKNohFe5QQ';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Constants ──
+const BRANCHES = [
+  { id:1,  name:'แพรกษา',   code:'PRK' },
+  { id:2,  name:'อโศก',     code:'ASK' },
+  { id:3,  name:'พระราม 2', code:'R2'  },
+  { id:4,  name:'ลาดพร้าว', code:'LPR' },
+  { id:5,  name:'รังสิต',   code:'RGS' },
+  { id:6,  name:'ชลบุรี',   code:'CBI' },
+  { id:7,  name:'พิษณุโลก', code:'PLK' },
+  { id:8,  name:'ขอนแก่น',  code:'KKN' },
+  { id:9,  name:'พระราม 9', code:'R9'  },
+  { id:10, name:'โคราช',    code:'KRT' },
+  { id:11, name:'ภูเก็ต',   code:'PKT' },
+];
+const MONTHS     = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const MONTH_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+// ── State ──
+let currentDoc    = 'receipt';
+let currentFilter = 'all';
+let currentSearch = '';
+let modalTarget   = null;
+let modalSelected = null;
+
+// DATA[branchId][doc_type][month_index] = { status, note, dbId }
+let DATA = {};
+
+function initData() {
+  BRANCHES.forEach(b => {
+    DATA[b.id] = { receipt: {}, pettycash: {} };
+    for (let m = 0; m < 12; m++) {
+      DATA[b.id].receipt[m]   = { status: 'na', note: '', dbId: null };
+      DATA[b.id].pettycash[m] = { status: 'na', note: '', dbId: null };
+    }
+  });
+}
+
+// ── Supabase ──
+async function loadFromSupabase() {
+  setSyncState('loading');
+  try {
+    const { data, error } = await db.from('checklist').select('*');
+    if (error) throw error;
+    data.forEach(row => {
+      if (DATA[row.branch_id] && DATA[row.branch_id][row.doc_type]) {
+        DATA[row.branch_id][row.doc_type][row.month_index] = {
+          status: row.status, note: row.note || '', dbId: row.id
+        };
+      }
+    });
+    setSyncState('ok');
+  } catch(e) {
+    console.error(e);
+    setSyncState('error');
+  }
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  renderTable();
+}
+
+async function upsertRecord(branchId, docType, monthIndex, status, note) {
+  setSyncState('loading');
+  try {
+    const { error } = await db.from('checklist')
+      .upsert(
+        { branch_id: branchId, doc_type: docType, month_index: monthIndex, status: status, note: note || '' },
+        { onConflict: 'branch_id,doc_type,month_index', ignoreDuplicates: false }
+      );
+    if (error) throw error;
+    setSyncState('ok');
+  } catch(e) {
+    console.error('Supabase error:', JSON.stringify(e));
+    setSyncState('error');
+    // Never revert UI — user's change stays visible
+  }
+}
+
+function setSyncState(state) {
+  const dot  = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  dot.className = 'sync-dot';
+  if (state === 'loading') { dot.classList.add('loading'); text.textContent = 'กำลังซิงค์...'; }
+  else if (state === 'ok') { text.textContent = 'ซิงค์แล้ว ✓'; setTimeout(()=>{ text.textContent='เชื่อมต่อแล้ว'; }, 1500); }
+  else { dot.classList.add('error'); text.textContent = 'ซิงค์ไม่สำเร็จ'; }
+}
+
+// ── Helpers ──
+function icon(s) { return s==='ok'?'✓':s==='partial'?'!':s==='missing'?'✗':'—'; }
+function cls(s)  { return s==='ok'?'ok':s==='partial'?'partial':s==='missing'?'missing':'na'; }
+
+function branchSummary(bid) {
+  const months = DATA[bid][currentDoc];
+  const vals   = Object.values(months).map(c => c.status);
+  const valid  = vals.filter(s => s !== 'na');
+  return {
+    pct:        valid.length ? Math.round(valid.filter(s=>s==='ok').length/valid.length*100) : 100,
+    hasMissing: vals.includes('missing'),
+    hasPartial:  vals.includes('partial'),
+  };
+}
+
+function pillHtml(bid) {
+  const { hasMissing, hasPartial } = branchSummary(bid);
+  if (!hasMissing && !hasPartial) return `<span class="status-pill pill-ok">✓ ครบแล้ว</span>`;
+  if (hasMissing)                 return `<span class="status-pill pill-missing">✗ ยังไม่ส่ง</span>`;
+  return `<span class="status-pill pill-partial">! รอแก้ไข</span>`;
+}
+
+// ── Render ──
+function renderTable() { renderHead(); renderBody(); updateSummary(); }
+
+function renderHead() {
+  let html = `<tr><th style="width:38px">#</th><th style="min-width:130px;text-align:left">สาขา</th>`;
+  MONTHS.forEach(m => html += `<th style="min-width:52px">${m}</th>`);
+  html += `<th>สถานะรวม</th><th style="min-width:180px;text-align:left">ระบุหมายเหตุ</th></tr>`;
+  document.getElementById('tableHead').innerHTML = html;
+}
+
+function renderBody() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  BRANCHES.forEach(b => {
+    if (currentSearch && !b.name.toLowerCase().includes(currentSearch.toLowerCase())) return;
+    const { hasMissing, hasPartial } = branchSummary(b.id);
+    if (currentFilter === 'ok'      && (hasMissing || hasPartial)) return;
+    if (currentFilter === 'missing' && !hasMissing && !hasPartial) return;
+    if (currentFilter === 'partial' && !hasPartial) return;
+
+    const tr = document.createElement('tr');
+    let cells = `
+      <td><span class="branch-no">${b.id}</span></td>
+      <td><div class="branch-name">${b.name}</div><div class="branch-code">${b.code}</div></td>`;
+
+    for (let mi = 0; mi < 12; mi++) {
+      const s = DATA[b.id][currentDoc][mi].status;
+      cells += `<td><button class="badge-btn ${cls(s)}"
+        onclick="openModal(${b.id},${mi})"
+        title="${MONTH_FULL[mi]}: คลิกเพื่อเปลี่ยนสถานะ">${icon(s)}</button></td>`;
+    }
+
+    const noteVal = DATA[b.id][currentDoc][0] ? (DATA[b.id][`note_${currentDoc}`] || '') : '';
+    cells += `
+      <td>${pillHtml(b.id)}</td>
+      <td style="text-align:left">
+        <textarea class="note-input" rows="1"
+          placeholder="ระบุหมายเหตุ..."
+          data-bid="${b.id}"
+          onblur="saveNote(${b.id}, this.value)">${DATA[b.id][`note_${currentDoc}`] || ''}</textarea>
+      </td>`;
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateSummary() {
+  let allOk=0, partial=0, missing=0;
+  BRANCHES.forEach(b => {
+    const { hasMissing, hasPartial } = branchSummary(b.id);
+    if (!hasMissing && !hasPartial) allOk++;
+    else if (hasMissing) missing++;
+    else partial++;
+  });
+  const docLabel = currentDoc === 'receipt' ? 'ใบเสร็จรับเงิน' : 'เงินสดย่อย';
+  document.getElementById('summaryBar').innerHTML = `
+    <div class="stat"><span class="stat-dot dot-ok"></span><strong>${allOk}</strong>&nbsp;สาขาครบถ้วน</div>
+    <div class="stat"><span class="stat-dot dot-partial"></span><strong>${partial}</strong>&nbsp;สาขารอแก้ไข</div>
+    <div class="stat"><span class="stat-dot dot-missing"></span><strong>${missing}</strong>&nbsp;สาขายังไม่ส่ง</div>
+    <div class="stat" style="margin-left:auto;font-size:11px;color:var(--text-muted)">
+      กำลังดู: <strong style="color:var(--accent)">${docLabel}</strong> &nbsp;|&nbsp;
+      อัปเดต: ${new Date().toLocaleString('th-TH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+    </div>`;
+}
+
+// ── Note (per branch per doctype, not per month) ──
+async function saveNote(bid, val) {
+  DATA[bid][`note_${currentDoc}`] = val;
+  // Save note into month 0 record for simplicity (stored separately in memory)
+  // No DB call for note field in this version - stored locally
+}
+
+// ── Modal ──
+function openModal(bid, mi) {
+  modalTarget   = { bid, mi };
+  modalSelected = DATA[bid][currentDoc][mi].status;
+  const docLabel = currentDoc === 'receipt' ? 'ใบเสร็จรับเงิน' : 'เงินสดย่อย';
+  document.getElementById('modalTitle').textContent = `${BRANCHES.find(b=>b.id===bid).name} — ${MONTH_FULL[mi]}`;
+  document.getElementById('modalSub').textContent   = `ประเภทเอกสาร: ${docLabel}`;
+  document.querySelectorAll('.opt-btn').forEach(b => {
+    b.className = 'opt-btn';
+    if (b.dataset.val === modalSelected) b.classList.add(`sel-${modalSelected}`);
+  });
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  modalTarget = null; modalSelected = null;
+}
+function selectOpt(btn) {
+  modalSelected = btn.dataset.val;
+  document.querySelectorAll('.opt-btn').forEach(b => b.className = 'opt-btn');
+  btn.classList.add(`sel-${modalSelected}`);
+}
+async function confirmModal() {
+  if (!modalTarget || !modalSelected) { closeModal(); return; }
+  const { bid, mi } = modalTarget;
+  const note = DATA[bid][currentDoc][mi].note || '';
+  // 1. Update local DATA immediately
+  DATA[bid][currentDoc][mi] = { status: modalSelected, note: note, dbId: DATA[bid][currentDoc][mi].dbId || null };
+  // 2. Close modal
+  closeModal();
+  // 3. Re-render UI immediately
+  renderTable();
+  // 4. Sync to Supabase (non-blocking)
+  upsertRecord(bid, currentDoc, mi, modalSelected, note);
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ── Filter / Search ──
+function switchDoc(doc, btn) {
+  currentDoc = doc;
+  document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+function filterBranches(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBody(); updateSummary();
+}
+function searchBranch(val) {
+  currentSearch = val;
+  renderBody(); updateSummary();
+}
+function printPage() { window.print(); }
+
+// ── Init ──
+initData();
+loadFromSupabase();
+</script>
+</body>
+</html>
