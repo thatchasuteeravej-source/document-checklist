@@ -404,12 +404,16 @@ async function upsertRecord(branchId, docType, monthIndex, status, note) {
       result = await db.from('checklist').insert(payload).select().single();
     }
     if (result.error) throw result.error;
-    DATA[branchId][docType][monthIndex] = { status, note, dbId: result.data.id };
+    // Update only dbId, keep status already set by confirmModal
+    DATA[branchId][docType][monthIndex].dbId = result.data.id;
+    DATA[branchId][docType][monthIndex].note = note;
     setSyncState('ok');
   } catch(e) {
     console.error(e);
     setSyncState('error');
-    alert('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
+    // Revert status on error
+    DATA[branchId][docType][monthIndex].status = cell.status;
+    renderTable();
   }
 }
 
