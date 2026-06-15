@@ -395,29 +395,17 @@ async function loadFromSupabase() {
 async function upsertRecord(branchId, docType, monthIndex, status, note) {
   setSyncState('loading');
   try {
-    // Always use upsert to avoid insert/update conflicts
-    const payload = {
-      branch_id: branchId,
-      doc_type: docType,
-      month_index: monthIndex,
-      status: status,
-      note: note || '',
-      updated_at: new Date().toISOString()
-    };
-    const result = await db.from('checklist')
-      .upsert(payload, { onConflict: 'branch_id,doc_type,month_index' })
-      .select()
-      .single();
-    if (result.error) throw result.error;
-    // Update dbId only — don't touch status (already set by confirmModal)
-    if (result.data) {
-      DATA[branchId][docType][monthIndex].dbId = result.data.id;
-    }
+    const { error } = await db.from('checklist')
+      .upsert(
+        { branch_id: branchId, doc_type: docType, month_index: monthIndex, status: status, note: note || '' },
+        { onConflict: 'branch_id,doc_type,month_index', ignoreDuplicates: false }
+      );
+    if (error) throw error;
     setSyncState('ok');
   } catch(e) {
-    console.error('Supabase error:', e);
+    console.error('Supabase error:', JSON.stringify(e));
     setSyncState('error');
-    // Don't revert — keep UI as-is, just show error indicator
+    // Never revert UI — user's change stays visible
   }
 }
 
@@ -549,13 +537,15 @@ function selectOpt(btn) {
 async function confirmModal() {
   if (!modalTarget || !modalSelected) { closeModal(); return; }
   const { bid, mi } = modalTarget;
-  const note = DATA[bid][currentDoc][mi].note;
-  // Update local state immediately so UI updates right away
-  DATA[bid][currentDoc][mi].status = modalSelected;
+  const note = DATA[bid][currentDoc][mi].note || '';
+  // 1. Update local DATA immediately
+  DATA[bid][currentDoc][mi] = { status: modalSelected, note: note, dbId: DATA[bid][currentDoc][mi].dbId || null };
+  // 2. Close modal
   closeModal();
+  // 3. Re-render UI immediately
   renderTable();
-  // Sync to Supabase in background
-  await upsertRecord(bid, currentDoc, mi, modalSelected, note);
+  // 4. Sync to Supabase (non-blocking)
+  upsertRecord(bid, currentDoc, mi, modalSelected, note);
 }
 document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) closeModal();
