@@ -394,9 +394,8 @@ async function loadFromSupabase() {
 
 async function upsertRecord(branchId, docType, monthIndex, status, note) {
   setSyncState('loading');
-  const cell = DATA[branchId][docType][monthIndex];
-  const prevStatus = cell.status;
   try {
+    // Always use upsert to avoid insert/update conflicts
     const payload = {
       branch_id: branchId,
       doc_type: docType,
@@ -405,29 +404,20 @@ async function upsertRecord(branchId, docType, monthIndex, status, note) {
       note: note || '',
       updated_at: new Date().toISOString()
     };
-    let result;
-    if (cell.dbId) {
-      result = await db.from('checklist')
-        .update({ status: status, note: note || '', updated_at: new Date().toISOString() })
-        .eq('id', cell.dbId)
-        .select()
-        .single();
-    } else {
-      result = await db.from('checklist')
-        .upsert(payload, { onConflict: 'branch_id,doc_type,month_index' })
-        .select()
-        .single();
-    }
+    const result = await db.from('checklist')
+      .upsert(payload, { onConflict: 'branch_id,doc_type,month_index' })
+      .select()
+      .single();
     if (result.error) throw result.error;
-    DATA[branchId][docType][monthIndex].dbId = result.data.id;
-    DATA[branchId][docType][monthIndex].status = status;
-    DATA[branchId][docType][monthIndex].note = note || '';
+    // Update dbId only — don't touch status (already set by confirmModal)
+    if (result.data) {
+      DATA[branchId][docType][monthIndex].dbId = result.data.id;
+    }
     setSyncState('ok');
   } catch(e) {
     console.error('Supabase error:', e);
     setSyncState('error');
-    DATA[branchId][docType][monthIndex].status = prevStatus;
-    renderTable();
+    // Don't revert — keep UI as-is, just show error indicator
   }
 }
 
